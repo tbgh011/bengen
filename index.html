@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<title>The Zero Horizon — A Retirement Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;0,9..144,900;1,9..144,500&family=JetBrains+Mono:wght@400;500&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --cream: #f4ede1;
+    --cream-2: #ebe1d0;
+    --ink: #16211f;
+    --ink-soft: #2a3633;
+    --teal: #0f4c43;
+    --teal-bright: #1a6b5e;
+    --rust: #b4472b;
+    --gold: #c89b4a;
+    --paper-line: rgba(22, 33, 31, 0.12);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--cream);
+    color: var(--ink);
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background-image:
+      radial-gradient(circle at 10% 10%, rgba(200,155,74,0.08), transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(15,76,67,0.06), transparent 45%);
+    min-height: 100vh;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0.25;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.086 0 0 0 0 0.129 0 0 0 0 0.122 0 0 0 0.35 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 48px 40px 80px;
+  }
+
+  /* Masthead */
+  .masthead {
+    border-top: 3px double var(--ink);
+    border-bottom: 1px solid var(--ink);
+    padding: 14px 0;
+    margin-bottom: 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: 'Fraunces', serif;
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .masthead .vol { font-style: italic; font-weight: 500; }
+  .masthead .date { font-feature-settings: "tnum"; }
+
+  .page-title {
+    margin-bottom: 40px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--paper-line);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 32px;
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: clamp(36px, 4.5vw, 56px);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    color: var(--ink);
+  }
+
+  .title-sub {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--ink-soft);
+    max-width: 40ch;
+    text-align: right;
+  }
+
+  /* Layout */
+  .layout {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 56px;
+  }
+
+  /* Form panel */
+  .panel {
+    background: var(--cream-2);
+    border: 1px solid var(--ink);
+    padding: 36px 32px;
+    position: relative;
+    box-shadow: 6px 6px 0 var(--ink);
+  }
+
+  .panel::before {
+    content: "§ 01";
+    position: absolute;
+    top: -12px;
+    left: 24px;
+    background: var(--cream);
+    padding: 0 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--teal);
+  }
+
+  .panel-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 24px;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+
+  .panel-sub {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 14px;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--paper-line);
+  }
+
+  .field-group {
+    margin-bottom: 22px;
+  }
+
+  .field-group h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 14px;
+    padding-bottom: 6px;
+    border-bottom: 1px dotted var(--paper-line);
+  }
+
+  .field {
+    margin-bottom: 16px;
+  }
+
+  .field:last-child { margin-bottom: 0; }
+
+  .field-note {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 8px;
+    line-height: 1.4;
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  label .val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--teal);
+    font-weight: 500;
+  }
+
+  input[type="number"] {
+    width: 100%;
+    padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    background: var(--cream);
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    font-feature-settings: "tnum";
+    transition: all 0.15s ease;
+  }
+
+  input[type="number"]:focus {
+    outline: none;
+    background: #fff;
+    box-shadow: 3px 3px 0 var(--teal);
+    transform: translate(-1px, -1px);
+  }
+
+  /* Custom slider */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--paper-line);
+    border-radius: 0;
+    outline: none;
+    margin: 8px 0 0;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--teal);
+    cursor: pointer;
+    border: 2px solid var(--cream);
+    box-shadow: 0 0 0 1px var(--ink);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--teal);
+    cursor: pointer;
+    border: 2px solid var(--cream);
+    box-shadow: 0 0 0 1px var(--ink);
+    border-radius: 0;
+  }
+
+  .prefix-wrap {
+    position: relative;
+  }
+
+  .prefix-wrap .prefix {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Fraunces', serif;
+    font-size: 14px;
+    color: var(--ink-soft);
+    pointer-events: none;
+  }
+
+  .prefix-wrap input { padding-left: 24px; }
+
+  .suffix-wrap {
+    position: relative;
+  }
+
+  .suffix-wrap .suffix {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-soft);
+    pointer-events: none;
+  }
+
+  .suffix-wrap input { padding-right: 28px; }
+
+  /* Results panel */
+  .results {
+    position: relative;
+  }
+
+  .results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--ink);
+  }
+
+  .results-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+  }
+
+  .results-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 32px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .results-title em {
+    font-style: italic;
+    font-weight: 500;
+    color: var(--rust);
+  }
+
+  .folio {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-soft);
+    letter-spacing: 0.1em;
+  }
+
+  /* Milestone cards — the three prominent ages */
+  .milestones {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .milestone {
+    background: var(--cream-2);
+    border: 1px solid var(--ink);
+    padding: 24px 22px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .milestone::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--teal);
+  }
+
+  #ms-home-in::before { background: var(--gold); }
+  #ms-home-out::before { background: var(--rust); }
+
+  .milestone:hover {
+    transform: translateY(-2px);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+
+  .ms-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+    min-height: 24px;
+  }
+
+  .ms-age {
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: clamp(52px, 6vw, 76px);
+    line-height: 0.9;
+    letter-spacing: -0.035em;
+    color: var(--ink);
+    font-feature-settings: "tnum";
+    margin-bottom: 10px;
+  }
+
+  #ms-invest .ms-age { color: var(--teal); }
+  #ms-home-in .ms-age { color: var(--gold); }
+  #ms-home-out .ms-age { color: var(--rust); }
+
+  .ms-age.na {
+    color: var(--ink-soft) !important;
+    font-size: clamp(20px, 2.2vw, 28px);
+    font-style: italic;
+    font-weight: 500;
+    padding-top: 18px;
+    letter-spacing: -0.01em;
+  }
+
+  .ms-sub {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.35;
+    min-height: 34px;
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    margin-bottom: 14px;
+    border: 1px solid var(--ink);
+  }
+
+  .stat-grid + .stat-grid {
+    margin-bottom: 32px;
+  }
+
+  .stat {
+    padding: 20px 24px;
+    border-right: 1px solid var(--ink);
+  }
+
+  .stat:last-child { border-right: none; }
+
+  .stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 26px;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-feature-settings: "tnum";
+  }
+
+  .stat-value.teal { color: var(--teal); }
+  .stat-value.rust { color: var(--rust); }
+
+  /* Chart */
+  .chart-frame {
+    background: var(--cream-2);
+    border: 1px solid var(--ink);
+    padding: 28px;
+    position: relative;
+    margin-bottom: 32px;
+  }
+
+  .chart-frame::before {
+    content: "FIG. 01 — Portfolio trajectory";
+    position: absolute;
+    top: -12px;
+    left: 20px;
+    background: var(--cream);
+    padding: 0 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--teal);
+  }
+
+  .chart-caption {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-top: 14px;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  #chart { max-height: 340px; }
+
+  /* Toggle */
+  .toggle {
+    display: inline-flex;
+    border: 1px solid var(--ink);
+    background: var(--cream);
+    margin-top: 10px;
+  }
+
+  .toggle button {
+    background: transparent;
+    border: none;
+    padding: 7px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .toggle button + button { border-left: 1px solid var(--ink); }
+
+  .toggle button.active {
+    background: var(--ink);
+    color: var(--gold);
+  }
+
+  .toggle button:hover:not(.active) {
+    background: var(--paper-line);
+  }
+
+  /* Warning */
+  .warning {
+    background: var(--cream-2);
+    border-left: 4px solid var(--rust);
+    padding: 18px 22px;
+    margin-bottom: 32px;
+    display: none;
+  }
+
+  .warning.show { display: block; }
+
+  .warning-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 6px;
+  }
+
+  .warning-text {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+
+  /* Methodology */
+  .method {
+    border-top: 1px solid var(--ink);
+    padding-top: 28px;
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 40px;
+  }
+
+  .method h4 {
+    font-family: 'Fraunces', serif;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  .method h4 em {
+    font-style: italic;
+    color: var(--teal);
+    font-weight: 500;
+  }
+
+  .method p {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    margin-bottom: 12px;
+  }
+
+  .method p:last-child { margin-bottom: 0; }
+
+  .method .drop-cap::first-letter {
+    font-family: 'Fraunces', serif;
+    font-weight: 900;
+    font-size: 54px;
+    float: left;
+    line-height: 0.85;
+    margin: 4px 8px 0 0;
+    color: var(--rust);
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 80px;
+    padding-top: 24px;
+    border-top: 3px double var(--ink);
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  /* Animations */
+  @keyframes reveal {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .page-title, .panel, .results { animation: reveal 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .panel { animation-delay: 0.15s; }
+  .results { animation-delay: 0.3s; }
+
+  @keyframes pulse-num {
+    0% { opacity: 1; }
+    40% { opacity: 0.4; transform: scale(0.98); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  .hs-value.updating { animation: pulse-num 0.35s ease-out; transform-origin: left center; }
+
+  @keyframes flash-border {
+    0%, 100% { box-shadow: 6px 6px 0 var(--ink); }
+    50% { box-shadow: 6px 6px 0 var(--teal); }
+  }
+
+  .panel.recalc { animation: flash-border 0.4s ease; }
+
+  /* Responsive */
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; gap: 40px; }
+    .page-title { flex-direction: column; gap: 12px; align-items: flex-start; }
+    .title-sub { text-align: left; }
+    .stat-grid { grid-template-columns: 1fr; }
+    .stat { border-right: none; border-bottom: 1px solid var(--ink); }
+    .stat:last-child { border-bottom: none; }
+    .milestones { grid-template-columns: 1fr; }
+    .wrap { padding: 24px 20px 48px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <span class="vol">Vol. I — A Financial Quarterly</span>
+    <span class="title">The Zero Horizon</span>
+    <span class="date" id="todayDate">—</span>
+  </div>
+
+  <section class="page-title">
+    <h1>Retirement Runway</h1>
+    <p class="title-sub">A Bengen-anchored planner for the "die with zero" strategy.</p>
+  </section>
+
+  <div class="layout">
+
+    <!-- INPUTS -->
+    <aside class="panel">
+      <h2 class="panel-title">The Ledger</h2>
+      <p class="panel-sub">Your particulars, candidly reported.</p>
+
+      <div class="field-group">
+        <h3>I. The Timeline</h3>
+        <div class="field-row">
+          <div class="field">
+            <label>Current age <span class="val" id="curAgeVal">45</span></label>
+            <input type="number" id="curAge" value="45" min="18" max="99">
+          </div>
+          <div class="field">
+            <label>Retire at <span class="val" id="retAgeVal">65</span></label>
+            <input type="number" id="retAge" value="65" min="40" max="99">
+          </div>
+        </div>
+        <div class="field">
+          <label>Plan until age <span class="val" id="endAgeVal">95</span></label>
+          <input type="range" id="endAge" value="95" min="70" max="110">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <h3>II. Monthly Spending</h3>
+        <div class="field">
+          <label>Target monthly expenses (today's dollars)</label>
+          <div class="prefix-wrap">
+            <span class="prefix">$</span>
+            <input type="number" id="monthlyExpenses" value="6000" min="0" step="100">
+          </div>
+        </div>
+        <p class="field-note">Inflation-adjusted automatically each year.</p>
+      </div>
+
+      <div class="field-group">
+        <h3>III. The Capital</h3>
+        <div class="field">
+          <label>Current portfolio</label>
+          <div class="prefix-wrap">
+            <span class="prefix">$</span>
+            <input type="number" id="portfolio" value="250000" min="0" step="5000">
+          </div>
+        </div>
+        <div class="field">
+          <label>Annual contribution (until retirement)</label>
+          <div class="prefix-wrap">
+            <span class="prefix">$</span>
+            <input type="number" id="contrib" value="24000" min="0" step="1000">
+          </div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <h3>IV. Social Security</h3>
+        <div class="field">
+          <label>Monthly benefit (today's dollars)</label>
+          <div class="prefix-wrap">
+            <span class="prefix">$</span>
+            <input type="number" id="ssMonthly" value="2500" min="0" step="100">
+          </div>
+        </div>
+        <div class="field">
+          <label>Claim at age <span class="val" id="ssStartVal">67</span></label>
+          <input type="range" id="ssStart" value="67" min="62" max="70">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <h3>V. Home Equity</h3>
+        <div class="field">
+          <label>Current home equity</label>
+          <div class="prefix-wrap">
+            <span class="prefix">$</span>
+            <input type="number" id="homeEquity" value="0" min="0" step="10000">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Appreciation <span class="val" id="homeGrowthVal">3.0%</span></label>
+            <div class="suffix-wrap">
+              <input type="number" id="homeGrowth" value="3" min="0" max="15" step="0.1">
+              <span class="suffix">%</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Liquidate at age <span class="val" id="homeSellVal">75</span></label>
+            <input type="number" id="homeSell" value="75" min="40" max="110">
+          </div>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <h3>VI. The Assumptions</h3>
+        <div class="field-row">
+          <div class="field">
+            <label>Pre-ret. return <span class="val" id="preRetVal">7.0%</span></label>
+            <div class="suffix-wrap">
+              <input type="number" id="preRet" value="7" min="0" max="20" step="0.1">
+              <span class="suffix">%</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Post-ret. return <span class="val" id="postRetVal">5.0%</span></label>
+            <div class="suffix-wrap">
+              <input type="number" id="postRet" value="5" min="0" max="20" step="0.1">
+              <span class="suffix">%</span>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Inflation <span class="val" id="inflVal">2.5%</span></label>
+          <div class="suffix-wrap">
+            <input type="number" id="infl" value="2.5" min="0" max="15" step="0.1">
+            <span class="suffix">%</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- RESULTS -->
+    <main class="results">
+      <div class="results-header">
+        <div>
+          <div class="results-label">The Dispatch</div>
+          <h2 class="results-title">Your <em>findings</em>, computed.</h2>
+          <div class="toggle" role="group" aria-label="Display mode">
+            <button type="button" data-mode="real" class="active">Today's $</button>
+            <button type="button" data-mode="nominal">Future $</button>
+          </div>
+        </div>
+        <div class="folio">N<sup>o</sup> 001</div>
+      </div>
+
+      <div class="warning" id="warning">
+        <div class="warning-label">Editor's Caveat</div>
+        <div class="warning-text" id="warningText"></div>
+      </div>
+
+      <!-- Milestone cards: the three ages -->
+      <div class="milestones">
+        <div class="milestone" id="ms-invest">
+          <div class="ms-label">Investments run dry</div>
+          <div class="ms-age" id="investRanOut">—</div>
+          <div class="ms-sub" id="investRanOutSub">—</div>
+        </div>
+        <div class="milestone" id="ms-home-in">
+          <div class="ms-label">Home equity kicks in</div>
+          <div class="ms-age" id="homeKicksIn">—</div>
+          <div class="ms-sub" id="homeKicksInSub">—</div>
+        </div>
+        <div class="milestone" id="ms-home-out">
+          <div class="ms-label">Home equity exhausted</div>
+          <div class="ms-age" id="homeRunsOut">—</div>
+          <div class="ms-sub" id="homeRunsOutSub">—</div>
+        </div>
+      </div>
+
+      <!-- Supporting figures -->
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="stat-label">Portfolio at retirement</div>
+          <div class="stat-value teal" id="portAtRet">$—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Year-one spending</div>
+          <div class="stat-value" id="yearOneSpend">$—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Effective WR vs. Bengen</div>
+          <div class="stat-value rust" id="wrRatio">—</div>
+        </div>
+      </div>
+
+      <div class="chart-frame">
+        <canvas id="chart"></canvas>
+        <div class="chart-caption">
+          Portfolio balance over time, with vertical markers at each milestone.
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer>
+    <span>Bengen (1994) · Perkins (2020)</span>
+    <span>— fin —</span>
+    <span>For illustration only</span>
+  </footer>
+</div>
+
+<script>
+  // Set date
+  const now = new Date();
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  document.getElementById('todayDate').textContent = `${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+
+  const $ = id => document.getElementById(id);
+
+  const inputs = {
+    curAge: $('curAge'),
+    retAge: $('retAge'),
+    endAge: $('endAge'),
+    monthlyExpenses: $('monthlyExpenses'),
+    portfolio: $('portfolio'),
+    contrib: $('contrib'),
+    ssMonthly: $('ssMonthly'),
+    ssStart: $('ssStart'),
+    homeEquity: $('homeEquity'),
+    homeGrowth: $('homeGrowth'),
+    homeSell: $('homeSell'),
+    preRet: $('preRet'),
+    postRet: $('postRet'),
+    infl: $('infl'),
+  };
+
+  let displayMode = 'real';
+  let simData = null;
+
+  const MAX_SIM_AGE = 120;
+
+  const fmt = n => {
+    if (!isFinite(n)) return '—';
+    const abs = Math.abs(n);
+    if (abs >= 1e9) return `$${(n/1e9).toFixed(2)}B`;
+    if (abs >= 1e6) return `$${(n/1e6).toFixed(2)}M`;
+    if (abs >= 1e3) return `$${Math.round(n/1000)}K`;
+    return `$${Math.round(n).toLocaleString()}`;
+  };
+
+  const fmtFull = n => {
+    if (!isFinite(n)) return '—';
+    return `$${Math.round(n).toLocaleString()}`;
+  };
+
+  // Chart setup
+  const ctx = $('chart').getContext('2d');
+  let chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          align: 'end',
+          labels: {
+            font: { family: 'JetBrains Mono', size: 10 },
+            color: '#2a3633',
+            boxWidth: 12,
+            boxHeight: 12,
+            padding: 14,
+            usePointStyle: false
+          }
+        },
+        tooltip: {
+          backgroundColor: '#16211f',
+          titleFont: { family: 'Fraunces', size: 13, weight: '700' },
+          bodyFont: { family: 'JetBrains Mono', size: 11 },
+          padding: 12,
+          borderColor: '#c89b4a',
+          borderWidth: 1,
+          callbacks: {
+            title: items => items.length ? `Age ${items[0].label}` : '',
+            label: ctx => `${ctx.dataset.label}: ${fmtFull(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'AGE', font: { family: 'JetBrains Mono', size: 10, weight: '500' }, color: '#2a3633' },
+          grid: { color: 'rgba(22,33,31,0.06)' },
+          ticks: { font: { family: 'JetBrains Mono', size: 10 }, color: '#2a3633', maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
+        },
+        y: {
+          grid: { color: 'rgba(22,33,31,0.06)' },
+          ticks: {
+            font: { family: 'JetBrains Mono', size: 10 },
+            color: '#2a3633',
+            callback: v => fmt(v)
+          }
+        }
+      }
+    }
+  });
+
+  // Chart plugin: draw vertical lines at milestones
+  const milestonePlugin = {
+    id: 'milestones',
+    afterDatasetsDraw(chart) {
+      if (!simData || !simData.milestoneLines) return;
+      const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
+      simData.milestoneLines.forEach(ml => {
+        const xPos = x.getPixelForValue(ml.age);
+        if (xPos < x.left || xPos > x.right) return;
+        ctx.save();
+        ctx.strokeStyle = ml.color;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(xPos, top);
+        ctx.lineTo(xPos, bottom);
+        ctx.stroke();
+        // Label
+        ctx.setLineDash([]);
+        ctx.fillStyle = ml.color;
+        ctx.font = '10px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        const labelY = top + 12 + (ml.labelOffset || 0);
+        // Background pill
+        const text = ml.label;
+        const metrics = ctx.measureText(text);
+        ctx.fillStyle = '#f4ede1';
+        ctx.fillRect(xPos - metrics.width/2 - 4, labelY - 9, metrics.width + 8, 13);
+        ctx.fillStyle = ml.color;
+        ctx.fillText(text, xPos, labelY);
+        ctx.restore();
+      });
+    }
+  };
+  Chart.register(milestonePlugin);
+
+  function calculate() {
+    const curAge         = +inputs.curAge.value;
+    const retAge         = +inputs.retAge.value;
+    const endAge         = +inputs.endAge.value;
+    const monthlyExp     = +inputs.monthlyExpenses.value;
+    const port0          = +inputs.portfolio.value;
+    const contrib        = +inputs.contrib.value;
+    const ssMonthly      = +inputs.ssMonthly.value;
+    const ssStartAge     = +inputs.ssStart.value;
+    const homeEquity0    = +inputs.homeEquity.value;
+    const homeGrowth     = +inputs.homeGrowth.value / 100;
+    const homeSellAge    = +inputs.homeSell.value;
+    const preNom         = +inputs.preRet.value / 100;
+    const postNom        = +inputs.postRet.value / 100;
+    const inflation      = +inputs.infl.value / 100;
+
+    // Update value indicators
+    $('curAgeVal').textContent = curAge;
+    $('retAgeVal').textContent = retAge;
+    $('endAgeVal').textContent = endAge;
+    $('ssStartVal').textContent = ssStartAge;
+    $('homeGrowthVal').textContent = `${(homeGrowth*100).toFixed(1)}%`;
+    $('homeSellVal').textContent = homeSellAge;
+    $('preRetVal').textContent = `${(preNom*100).toFixed(1)}%`;
+    $('postRetVal').textContent = `${(postNom*100).toFixed(1)}%`;
+    $('inflVal').textContent = `${(inflation*100).toFixed(1)}%`;
+
+    const warn = $('warning');
+    const warnText = $('warningText');
+    let warnings = [];
+
+    if (retAge <= curAge) warnings.push('Retirement age must exceed current age.');
+    if (endAge <= retAge) warnings.push('Planning horizon must extend beyond retirement.');
+
+    if (warnings.length > 0) {
+      warn.classList.add('show');
+      warnText.textContent = warnings.join(' ');
+      return;
+    }
+
+    const accumYears = retAge - curAge;
+    const annualExpReal = monthlyExp * 12;
+    const ssAnnualReal = ssMonthly * 12;
+
+    // === ACCUMULATION PHASE ===
+    // Track both nominal and real balances, and ages
+    let ages = [];
+    let balNom = [];
+    let balReal = [];
+    let spendNom = [];
+    let spendReal = [];
+    let ssNom = [];
+    let ssReal = [];
+
+    let bal = port0;
+    for (let y = 0; y <= accumYears; y++) {
+      const age = curAge + y;
+      const inflFactor = Math.pow(1 + inflation, y);
+      ages.push(age);
+      balNom.push(bal);
+      balReal.push(bal / inflFactor);
+      spendNom.push(null);
+      spendReal.push(null);
+      ssNom.push(null);
+      ssReal.push(null);
+      if (y < accumYears) {
+        bal = bal * (1 + preNom) + contrib;
+      }
+    }
+
+    const portAtRet = bal;
+    const inflateToRet = Math.pow(1 + inflation, accumYears);
+
+    // === RETIREMENT PHASE (forward simulation) ===
+    // Track three milestones:
+    //  - investRanOutAge: portfolio hits 0 before any home sale
+    //  - homeKicksInAge: the age home sale injects proceeds (input)
+    //  - totalRanOutAge: portfolio (post-home-sale) hits 0
+    let investRanOutAge = null;
+    let homeKicksInAge = null;
+    let totalRanOutAge = null;
+    let homeAdded = false;
+    const hasHomeEquity = homeEquity0 > 0 && homeSellAge >= retAge && homeSellAge <= MAX_SIM_AGE;
+    let homeSaleProceedsNom = 0;
+
+    for (let age = retAge; age <= MAX_SIM_AGE; age++) {
+      const yrsFromNow = age - curAge;
+      const inflFactor = Math.pow(1 + inflation, yrsFromNow);
+
+      const spendThisYear = annualExpReal * inflFactor;
+      const ssThisYear = age >= ssStartAge ? ssAnnualReal * inflFactor : 0;
+      const netNeed = Math.max(0, spendThisYear - ssThisYear);
+
+      // Draw from portfolio first
+      const balBefore = bal;
+      let actualWithdraw = netNeed;
+      if (bal >= netNeed) {
+        bal -= netNeed;
+      } else {
+        actualWithdraw = Math.max(0, bal);
+        if (!investRanOutAge && balBefore > 0) investRanOutAge = age;
+        bal = 0;
+      }
+
+      // Home sale (one-time, at start of that year after expenses drawn)
+      let homeThisYear = 0;
+      if (age === homeSellAge && hasHomeEquity && !homeAdded) {
+        const yearsHeld = homeSellAge - curAge;
+        homeThisYear = homeEquity0 * Math.pow(1 + homeGrowth, yearsHeld);
+        homeSaleProceedsNom = homeThisYear;
+        bal += homeThisYear;
+        homeKicksInAge = age;
+        homeAdded = true;
+      }
+
+      // After everything: if bal is 0, track total run-out
+      if (bal === 0 && !totalRanOutAge) {
+        // Only if all resources are exhausted (no more home sale coming)
+        if (homeAdded || !hasHomeEquity) {
+          totalRanOutAge = age;
+        }
+      }
+
+      // Record year-end state (after withdrawal and home sale, before growth)
+      ages.push(age + 1);
+      spendNom.push(spendThisYear);
+      spendReal.push(annualExpReal);
+      ssNom.push(ssThisYear);
+      ssReal.push(age >= ssStartAge ? ssAnnualReal : 0);
+
+      // Grow if positive
+      if (bal > 0) bal = bal * (1 + postNom);
+      balNom.push(Math.max(0, bal));
+      balReal.push(Math.max(0, bal) / Math.pow(1 + inflation, yrsFromNow + 1));
+
+      // Stop recording once we've exhausted all resources and nothing more to show
+      if (bal <= 0 && homeAdded && age >= endAge) break;
+      if (bal <= 0 && !hasHomeEquity && age >= endAge) break;
+      if (age >= endAge && bal > 0 && age - retAge >= 5) {
+        // Continue past endAge if portfolio still has money, but cap at some limit
+        if (age >= Math.max(endAge, 105)) break;
+      }
+    }
+
+    // Trim trailing flat-zero rows for cleaner chart
+    while (ages.length > accumYears + 3 &&
+           balNom[balNom.length - 1] === 0 &&
+           balNom[balNom.length - 2] === 0 &&
+           ages[ages.length - 1] > endAge) {
+      ages.pop(); balNom.pop(); balReal.pop();
+      spendNom.pop(); spendReal.pop();
+      ssNom.pop(); ssReal.pop();
+    }
+
+    // Bengen reference: first-year portfolio withdrawal vs 4% rule
+    const firstYrSpendNom = annualExpReal * inflateToRet;
+    const firstYrSSNom = retAge >= ssStartAge ? ssAnnualReal * inflateToRet : 0;
+    const firstYrPortWithdraw = Math.max(0, firstYrSpendNom - firstYrSSNom);
+    const bengen4pct = portAtRet * 0.04;
+    const wrRatio = bengen4pct > 0 ? firstYrPortWithdraw / bengen4pct : 0;
+
+    // Milestone chart lines
+    const milestoneLines = [];
+    if (investRanOutAge) milestoneLines.push({ age: investRanOutAge, color: '#0f4c43', label: `§ invest: ${investRanOutAge}`, labelOffset: 0 });
+    if (homeKicksInAge) milestoneLines.push({ age: homeKicksInAge, color: '#c89b4a', label: `§ home sale: ${homeKicksInAge}`, labelOffset: 18 });
+    if (totalRanOutAge && totalRanOutAge !== investRanOutAge) {
+      milestoneLines.push({ age: totalRanOutAge, color: '#b4472b', label: `§ exhausted: ${totalRanOutAge}`, labelOffset: 36 });
+    }
+
+    simData = {
+      ages, balNom, balReal, spendNom, spendReal, ssNom, ssReal,
+      portAtRet, inflateToRet,
+      homeSaleProceedsNom,
+      homeSaleProceedsReal: homeSaleProceedsNom / (hasHomeEquity ? Math.pow(1 + inflation, homeSellAge - curAge) : 1),
+      firstYrSpendNom, firstYrSpendReal: annualExpReal,
+      wrRatio,
+      investRanOutAge, homeKicksInAge, totalRanOutAge,
+      hasHomeEquity,
+      retAge, endAge, curAge,
+      milestoneLines,
+    };
+
+    // Warnings
+    warnings = [];
+    if (investRanOutAge && investRanOutAge < endAge) {
+      const gap = (hasHomeEquity && homeKicksInAge > investRanOutAge) ? (homeKicksInAge - investRanOutAge) : 0;
+      if (gap > 0) {
+        warnings.push(`Your investments deplete ${gap} year${gap>1?'s':''} before the home sale. During that gap, spending would exceed available income.`);
+      }
+    }
+    if (wrRatio > 1.5 && wrRatio < 100) {
+      warnings.push(`Your year-one portfolio withdrawal is ${wrRatio.toFixed(1)}× the Bengen-safe rate. Consider sequence-of-returns risk.`);
+    }
+    if (warnings.length > 0) {
+      warn.classList.add('show');
+      warnText.innerHTML = warnings.join('<br>');
+    } else {
+      warn.classList.remove('show');
+    }
+
+    renderResults();
+  }
+
+  function formatAge(age, fallbackText) {
+    if (age === null || age === undefined) return { text: fallbackText, isNA: true };
+    return { text: String(age), isNA: false };
+  }
+
+  function setAgeElement(elId, subElId, age, fallback, subTemplate, subFallback) {
+    const el = $(elId);
+    const subEl = $(subElId);
+    if (age === null || age === undefined) {
+      el.textContent = fallback;
+      el.classList.add('na');
+      subEl.textContent = subFallback;
+    } else {
+      el.textContent = String(age);
+      el.classList.remove('na');
+      subEl.textContent = subTemplate(age);
+    }
+  }
+
+  function renderResults() {
+    if (!simData) return;
+    const isReal = displayMode === 'real';
+    const d = simData;
+
+    // Milestone: Investments run dry
+    if (d.investRanOutAge) {
+      const yrs = d.investRanOutAge - d.retAge;
+      setAgeElement('investRanOut', 'investRanOutSub', d.investRanOutAge, 'never', 
+        (a) => `${yrs} year${yrs===1?'':'s'} into retirement`, '');
+    } else {
+      $('investRanOut').textContent = 'Never';
+      $('investRanOut').classList.add('na');
+      $('investRanOutSub').textContent = `Portfolio sustains through age ${d.endAge}+`;
+    }
+
+    // Milestone: Home equity kicks in
+    if (d.homeKicksInAge && d.hasHomeEquity) {
+      const proceeds = isReal ? d.homeSaleProceedsReal : d.homeSaleProceedsNom;
+      setAgeElement('homeKicksIn', 'homeKicksInSub', d.homeKicksInAge, 'N/A',
+        (a) => `${fmt(proceeds)} injected${isReal ? " (today's $)" : ''}`, '');
+    } else {
+      $('homeKicksIn').textContent = 'N/A';
+      $('homeKicksIn').classList.add('na');
+      $('homeKicksInSub').textContent = d.hasHomeEquity ? '' : 'No home equity specified';
+    }
+
+    // Milestone: Home equity exhausted
+    if (d.totalRanOutAge) {
+      const note = d.hasHomeEquity
+        ? `Combined pool exhausted`
+        : `Resources fully depleted`;
+      setAgeElement('homeRunsOut', 'homeRunsOutSub', d.totalRanOutAge, 'never',
+        (a) => note, '');
+    } else {
+      $('homeRunsOut').textContent = 'Never';
+      $('homeRunsOut').classList.add('na');
+      $('homeRunsOutSub').textContent = `Money lasts beyond age ${d.endAge}`;
+    }
+
+    // Supporting stats
+    $('portAtRet').textContent = fmt(isReal ? d.portAtRet / d.inflateToRet : d.portAtRet);
+    $('yearOneSpend').textContent = fmt(isReal ? d.firstYrSpendReal : d.firstYrSpendNom);
+    $('wrRatio').textContent = d.wrRatio > 0 ? `${d.wrRatio.toFixed(2)}×` : '—';
+
+    // Chart
+    const balances = isReal ? d.balReal : d.balNom;
+    const spending = isReal ? d.spendReal : d.spendNom;
+    const ssData = isReal ? d.ssReal : d.ssNom;
+
+    chart.data.labels = d.ages;
+    chart.data.datasets = [
+      {
+        label: 'Portfolio',
+        data: balances,
+        borderColor: '#0f4c43',
+        backgroundColor: 'rgba(15,76,67,0.08)',
+        borderWidth: 2.5,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#0f4c43',
+        fill: true,
+        tension: 0.2
+      },
+      {
+        label: 'Spending',
+        data: spending,
+        borderColor: '#b4472b',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [4, 3],
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#b4472b',
+      },
+      {
+        label: 'Social Security',
+        data: ssData,
+        borderColor: '#c89b4a',
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#c89b4a',
+      }
+    ];
+    chart.update('none');
+  }
+
+  // Wire all inputs
+  Object.values(inputs).forEach(el => {
+    const handler = () => {
+      try {
+        calculate();
+        const panel = document.querySelector('.panel');
+        if (panel) {
+          panel.classList.remove('recalc');
+          void panel.offsetWidth;
+          panel.classList.add('recalc');
+        }
+      } catch (err) {
+        console.error('Calculation error:', err);
+        const warn = $('warning');
+        const warnText = $('warningText');
+        warn.classList.add('show');
+        warnText.textContent = 'Calculation error: ' + err.message;
+      }
+    };
+    el.addEventListener('input', handler);
+    el.addEventListener('change', handler);
+  });
+
+  // Toggle
+  document.querySelectorAll('.toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.toggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      displayMode = btn.dataset.mode;
+      renderResults();
+    });
+  });
+
+  calculate();
+</script>
+</body>
+</html>
