@@ -183,6 +183,30 @@
     line-height: 1.4;
   }
 
+  .step-down {
+    border-left: 2px solid var(--paper-line);
+    padding: 12px 0 8px 14px;
+    margin: 14px 0 0;
+  }
+
+  .step-down-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 10px;
+  }
+
+  .step-down-label em {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--rust);
+  }
+
   .field-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -690,7 +714,42 @@
             <input type="number" id="monthlyExpenses" value="6000" min="0" step="100">
           </div>
         </div>
-        <p class="field-note">Inflation-adjusted automatically each year.</p>
+
+        <div class="step-down">
+          <div class="step-down-label">Step-down № 1 &mdash; <em>e.g., child support ends</em></div>
+          <div class="field-row">
+            <div class="field">
+              <label>Starting at age <span class="val" id="stepDown1AgeVal">70</span></label>
+              <input type="number" id="stepDown1Age" value="70" min="40" max="110">
+            </div>
+            <div class="field">
+              <label>Reduce by (today's $/mo)</label>
+              <div class="prefix-wrap">
+                <span class="prefix">$</span>
+                <input type="number" id="stepDown1Amount" value="0" min="0" step="100">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-down">
+          <div class="step-down-label">Step-down № 2 &mdash; <em>e.g., reduced activity</em></div>
+          <div class="field-row">
+            <div class="field">
+              <label>Starting at age <span class="val" id="stepDown2AgeVal">80</span></label>
+              <input type="number" id="stepDown2Age" value="80" min="40" max="110">
+            </div>
+            <div class="field">
+              <label>Reduce by <span class="val" id="stepDown2PctVal">0%</span></label>
+              <div class="suffix-wrap">
+                <input type="number" id="stepDown2Pct" value="0" min="0" max="100" step="5">
+                <span class="suffix">%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="field-note">All expenses are inflation-adjusted. Step-downs stack in order.</p>
       </div>
 
       <div class="field-group">
@@ -861,6 +920,10 @@
     retAge: $('retAge'),
     endAge: $('endAge'),
     monthlyExpenses: $('monthlyExpenses'),
+    stepDown1Age: $('stepDown1Age'),
+    stepDown1Amount: $('stepDown1Amount'),
+    stepDown2Age: $('stepDown2Age'),
+    stepDown2Pct: $('stepDown2Pct'),
     portfolio: $('portfolio'),
     contrib: $('contrib'),
     ssMonthly: $('ssMonthly'),
@@ -987,6 +1050,10 @@
     const retAge         = +inputs.retAge.value;
     const endAge         = +inputs.endAge.value;
     const monthlyExp     = +inputs.monthlyExpenses.value;
+    const stepDown1Age   = +inputs.stepDown1Age.value;
+    const stepDown1Amt   = +inputs.stepDown1Amount.value;
+    const stepDown2Age   = +inputs.stepDown2Age.value;
+    const stepDown2Pct   = +inputs.stepDown2Pct.value / 100;
     const port0          = +inputs.portfolio.value;
     const contrib        = +inputs.contrib.value;
     const ssMonthly      = +inputs.ssMonthly.value;
@@ -1002,6 +1069,9 @@
     $('curAgeVal').textContent = curAge;
     $('retAgeVal').textContent = retAge;
     $('endAgeVal').textContent = endAge;
+    $('stepDown1AgeVal').textContent = stepDown1Age;
+    $('stepDown2AgeVal').textContent = stepDown2Age;
+    $('stepDown2PctVal').textContent = `${(stepDown2Pct*100).toFixed(0)}%`;
     $('ssStartVal').textContent = ssStartAge;
     $('homeGrowthVal').textContent = `${(homeGrowth*100).toFixed(1)}%`;
     $('homeSellVal').textContent = homeSellAge;
@@ -1024,7 +1094,20 @@
 
     const accumYears = retAge - curAge;
     const annualExpReal = monthlyExp * 12;
+    const stepDown1AnnualReal = stepDown1Amt * 12;
     const ssAnnualReal = ssMonthly * 12;
+
+    // Helper: compute real (today's $) annual expenses for a given age, applying step-downs
+    const expensesRealForAge = (age) => {
+      let exp = annualExpReal;
+      if (stepDown1AnnualReal > 0 && age >= stepDown1Age) {
+        exp = Math.max(0, exp - stepDown1AnnualReal);
+      }
+      if (stepDown2Pct > 0 && age >= stepDown2Age) {
+        exp = exp * (1 - stepDown2Pct);
+      }
+      return exp;
+    };
 
     // === ACCUMULATION PHASE ===
     // Track both nominal and real balances, and ages
@@ -1071,7 +1154,8 @@
       const yrsFromNow = age - curAge;
       const inflFactor = Math.pow(1 + inflation, yrsFromNow);
 
-      const spendThisYear = annualExpReal * inflFactor;
+      const expRealThisYear = expensesRealForAge(age);
+      const spendThisYear = expRealThisYear * inflFactor;
       const ssThisYear = age >= ssStartAge ? ssAnnualReal * inflFactor : 0;
       const netNeed = Math.max(0, spendThisYear - ssThisYear);
 
@@ -1108,7 +1192,7 @@
       // Record year-end state (after withdrawal and home sale, before growth)
       ages.push(age + 1);
       spendNom.push(spendThisYear);
-      spendReal.push(annualExpReal);
+      spendReal.push(expRealThisYear);
       ssNom.push(ssThisYear);
       ssReal.push(age >= ssStartAge ? ssAnnualReal : 0);
 
@@ -1137,7 +1221,8 @@
     }
 
     // Bengen reference: first-year portfolio withdrawal vs 4% rule
-    const firstYrSpendNom = annualExpReal * inflateToRet;
+    const firstYrExpReal = expensesRealForAge(retAge);
+    const firstYrSpendNom = firstYrExpReal * inflateToRet;
     const firstYrSSNom = retAge >= ssStartAge ? ssAnnualReal * inflateToRet : 0;
     const firstYrPortWithdraw = Math.max(0, firstYrSpendNom - firstYrSSNom);
     const bengen4pct = portAtRet * 0.04;
@@ -1145,6 +1230,12 @@
 
     // Milestone chart lines
     const milestoneLines = [];
+    if (stepDown1AnnualReal > 0 && stepDown1Age >= retAge && stepDown1Age <= endAge) {
+      milestoneLines.push({ age: stepDown1Age, color: '#6b6355', label: `§ step-down: ${stepDown1Age}`, labelOffset: 54, dashStyle: true });
+    }
+    if (stepDown2Pct > 0 && stepDown2Age >= retAge && stepDown2Age <= endAge) {
+      milestoneLines.push({ age: stepDown2Age, color: '#6b6355', label: `§ reduce ${(stepDown2Pct*100).toFixed(0)}%: ${stepDown2Age}`, labelOffset: 72, dashStyle: true });
+    }
     if (investRanOutAge) milestoneLines.push({ age: investRanOutAge, color: '#0f4c43', label: `§ invest: ${investRanOutAge}`, labelOffset: 0 });
     if (homeKicksInAge) milestoneLines.push({ age: homeKicksInAge, color: '#c89b4a', label: `§ home sale: ${homeKicksInAge}`, labelOffset: 18 });
     if (totalRanOutAge && totalRanOutAge !== investRanOutAge) {
@@ -1156,7 +1247,7 @@
       portAtRet, inflateToRet,
       homeSaleProceedsNom,
       homeSaleProceedsReal: homeSaleProceedsNom / (hasHomeEquity ? Math.pow(1 + inflation, homeSellAge - curAge) : 1),
-      firstYrSpendNom, firstYrSpendReal: annualExpReal,
+      firstYrSpendNom, firstYrSpendReal: firstYrExpReal,
       wrRatio,
       investRanOutAge, homeKicksInAge, totalRanOutAge,
       hasHomeEquity,
